@@ -1,3 +1,6 @@
+#include "sort.h"
+#include <stdlib.h> 
+
 void marge(int arr[], int left, int mid, int right) {
     int n1 = mid - left + 1;
     int n2 = right - mid;
@@ -18,10 +21,12 @@ void marge(int arr[], int left, int mid, int right) {
             arr[k] = L[i];
             log_set(k, arr);
             i++;
+            k++;
         } else {
             arr[k] = R[j];
             log_set(k, arr);
             j++;
+            k++;
         }
     }
 

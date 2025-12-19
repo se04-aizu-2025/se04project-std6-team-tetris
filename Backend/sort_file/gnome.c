@@ -1,3 +1,6 @@
+#include "sort.h"
+#include <stdlib.h>
+
 void gnome(int arr[], int n) {
     int i = 0;
 

@@ -9,13 +9,20 @@ int main(void){
     int arr[] = {1,47,31,57,35,23,21,35,31,49,94};
     int n = sizeof(arr) / sizeof(arr[0]);
 
-    //start_log("selection_log.json",arr, n);
-    start_log("marge_log.json",arr, n);
+    //start_log("selection_log.json", arr, n);
+    //start_log("marge_log.json", arr, n);
+    //start_log("quick_log.json", arr, n);
+    //start_log("bubble_log.json", arr, n);
+    start_log("insertion_log.json", arr, n);
     //start_log("gnome_log.json",arr, n);
 
-    marge_sort(arr, 0, n - 1);
+    //selection(arr, n);
+    //marge_sort(arr, 0, n - 1);
+    //quick_sort(arr, 0, n - 1);
+    //bubble(arr, n);
+    insertion(arr, n);
     //gnome(arr, n);
-    //selection(arr,n);
+
 
     end_log(); 
 

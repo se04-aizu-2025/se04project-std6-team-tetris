@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./App.css";
+import SortList from "./components/sort-select/SortList";
 
 function App() {
   const [array, setArray] = useState([1, 47, 31, 57, 35, 23, 21, 35, 31, 49, 94]);
@@ -30,11 +31,19 @@ function App() {
     <div className="app">
       <h1>Sort Visualizer</h1>
 
-      <div>
-        <input type="text"></input>
-      </div>
+      <div className="sorting-number">
+        <h1>enter sorting numvers</h1>
+        <p>
+          <label>
+            <input type="radio" name ="sorting-number" />
+            自分で入力
+          </label>
+          <label>
+            <input type="radio" name ="sorting-number" />
+              自動生成
+          </label>
+        </p>
 
-      <div className="controls">
         <button onClick={generateRandomArray}>ランダム配列を生成</button>
         
         <button onClick={generateRandomArray2}>ランダム数を生成</button>
@@ -44,11 +53,19 @@ function App() {
             <li key={idx}>{num}</li>
           ))}
         </ul>
+      </div>
+
+      <div className="sorting-controls">
+        <SortList />
+        
   
         {/* ここに「selection sort」「merge sort」ボタンを後で追加 */}
       </div>
 
-
+      <div className="button">
+        <button onClick={generateRandomArray}>START</button>
+          
+      </div>
       <div className="bars">
         {array.map((value, idx) => (
           <div

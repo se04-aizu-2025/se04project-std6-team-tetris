@@ -12,7 +12,7 @@ h1 {
 }
 
 .controls {
-  display: grid;
+  display: flex;
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -38,23 +38,4 @@ button {
   width: 12px;
   background: #60a5fa;
   border-radius: 4px 4px 0 0;
-}
-
-.number-list {
-  display: flex;
-  flex-wrap: wrap;
-  list-style: none;
-  gap: 10px;
-  padding: 0;
-  margin: 0;
-  
-}
-
-.number-list li {
-  background: #4f46e5;
-  color: white;
-  padding: 6px 10px; 
-  /* たて　よこ */
-  border-radius: 6px;
-  font-weight: bold;
 }

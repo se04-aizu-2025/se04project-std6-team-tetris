@@ -1,23 +1,27 @@
-import React from "react";
 import Sort from "./Sort";
 
-const SortList = () => {
+const SORT_METHODS = [
+  { id: "quick", label: "Quick" },
+  { id: "merge", label: "Merge" },
+  { id: "selection", label: "Selection" },
+  { id: "gnome", label: "Gnome" },
+  { id: "bubble", label: "Bubble" },
+  { id: "insertion", label: "Insertion" },
+];
 
-  const SORT_SYSTEMS = [
-    { id: "quick", label: "クイックソート" },
-    { id: "merge", label: "マージソート" },
-    {id: "heap", label: "ヒープソート" },
-    { id: "bubble", label: "バブルソート" },
-  ];
-
+export default function SortList({ value, onChange }) {
   return (
     <div>
-        <h1>Select sorting method</h1>
-        
-        <Sort options = {SORT_SYSTEMS} />
-
+      <h2>Sort Method</h2>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        {SORT_METHODS.map((m) => (
+          <Sort
+            key={m.id}
+            id={m.id}
+            label={m.label}
+            checked={value === m.id}
+            onChange={() => onChange(m.id)}
+          />
+        ))}
+      </div>
     </div>
-  );
-};
-
-export default SortList

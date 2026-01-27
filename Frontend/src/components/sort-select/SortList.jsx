@@ -12,7 +12,7 @@ const SORT_METHODS = [
 export default function SortList({ value, onChange }) {
   return (
     <div>
-      <h2>Sort Method</h2>
+      <h2 className="block-title">Sort Method</h2>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         {SORT_METHODS.map((m) => (
           <Sort
@@ -25,3 +25,5 @@ export default function SortList({ value, onChange }) {
         ))}
       </div>
     </div>
+  );
+}

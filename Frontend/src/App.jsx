@@ -1,27 +1,74 @@
 import { useMemo, useRef, useState } from "react";
 import "./App.css";
 
-function App() {
-  const [array, setArray] = useState([1, 47, 31, 57, 35, 23, 21, 35, 31, 49, 94]);
-  const [inputArray, setInputArray] = useState([1, 47, 31, 57, 35, 23, 21, 35, 31, 49, 94]);
-  const [steps, setSteps] = useState([]);
+import SortList from "./components/sort-select/SortList";
+import SortVisualizer from "./components/SortVisualizer";
+import { SORT_DESCRIPTIONS } from "./data/sortDescriptions";
+
+/**
+ * backend の返却を UI(useSortStepper)互換に変換する
+ * 必須:
+ * - initialArray: number[]
+ * - steps: [{type,i,j,array?}]  ※ swap のときだけ array がある前提
+ */
+function toUiSortJson(inputArray, data) {
+  const rawSteps = Array.isArray(data?.steps) ? data.steps : [];
+
+  const initialArray =
+    Array.isArray(data?.initialArray) ? data.initialArray :
+    Array.isArray(data?.initial) ? data.initial :
+    Array.isArray(data?.initialArr) ? data.initialArr :
+    inputArray;
+
+  // swap step に array が既に入っているなら、そのまま通す
+  const swapHasArray = rawSteps.some(
+    (s) => s?.type === "swap" && Array.isArray(s?.array)
+  );
+  if (swapHasArray) {
+    return { initialArray, steps: rawSteps };
+  }
+
+  // swap の array が無い場合は、フロントで復元して swap のときだけ array を付与
+  let cur = [...initialArray];
+
+  const steps = rawSteps.map((s) => {
+    const type = s?.type ?? "step";
+
+    // backend 側キー揺れ対応（必要なら増やしてOK）
+    const i = Number(s?.i ?? s?.left ?? s?.a ?? s?.index1);
+    const j = Number(s?.j ?? s?.right ?? s?.b ?? s?.index2);
+
+    const safeI = Number.isFinite(i) ? i : null;
+    const safeJ = Number.isFinite(j) ? j : null;
+
+    if (type === "swap" && Number.isInteger(i) && Number.isInteger(j)) {
+      [cur[i], cur[j]] = [cur[j], cur[i]];
+      return { ...s, type, i, j, array: [...cur] };
+    }
+
+    return { ...s, type, i: safeI, j: safeJ };
+  });
+
+  return { initialArray, steps };
+}
+
+export default function App() {
+  const [sortMethod, setSortMethod] = useState("quick");
 
   const [inputMode, setInputMode] = useState("random"); // "random" | "manual"
   const [manualText, setManualText] = useState("");
-
   const totalNumberRef = useRef(null);
-  const [sortMethod, setSortMethod] = useState("quick");
 
-  const totalCount = useMemo(() => array.length, [array]);
+  const [inputArray, setInputArray] = useState([1, 47, 31, 57, 35, 23, 21, 35, 31, 49, 94]);
 
-  const setBothArrays = (arr) => {
-    setInputArray(arr);
-    setArray(arr);
-  };
+  // UI に渡すログ
+  const [sortJson, setSortJson] = useState(null);
+
+  const totalCount = useMemo(() => inputArray.length, [inputArray]);
 
   const generateRandomArray = (n) => {
     const tmp = Array.from({ length: n }, () => Math.floor(Math.random() * 100) + 1);
-    setBothArrays(tmp);
+    setInputArray(tmp);
   };
 
   const generateRandom20 = () => generateRandomArray(20);
@@ -52,30 +99,15 @@ function App() {
     return nums;
   };
 
-  const extractSortedArray = (data) => {
-    if (Array.isArray(data.sortedArray)) return data.sortedArray;
-    if (Array.isArray(data.finalArray)) return data.finalArray;
-    if (Array.isArray(data.array)) return data.array;
-
-    if (Array.isArray(data.steps) && data.steps.length > 0) {
-      for (let k = data.steps.length - 1; k >= 0; k--) {
-        const s = data.steps[k];
-        if (s && Array.isArray(s.array)) return s.array;
-      }
-    }
-
-    if (Array.isArray(data.initialArray)) return data.initialArray;
-    return null;
-  };
-
-  const startSorting = async () => {
+  // SortVisualizer の START から呼ばれる：backend へ投げて sortJson を更新
+  const requestSort = async () => {
     let arr = inputArray;
 
     if (inputMode === "manual") {
       const parsed = parseManualArray();
       if (!parsed) return;
       arr = parsed;
-      setBothArrays(parsed);
+      setInputArray(parsed);
     }
 
     if (!Array.isArray(arr) || arr.length === 0) {
@@ -83,41 +115,39 @@ function App() {
       return;
     }
 
-    try {
-      const res = await fetch("http://127.0.0.1:8081/sort", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method: sortMethod, array: arr }),
-      });
+    const res = await fetch("http://127.0.0.1:8081/sort", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ method: sortMethod, array: arr }),
+    });
 
-      if (!res.ok) {
-        alert(await res.text());
-        return;
-      }
-
-      const data = await res.json();
-
-      const gotSteps = Array.isArray(data.steps) ? data.steps : [];
-      setSteps(gotSteps);
-
-      const sorted = extractSortedArray({ ...data, steps: gotSteps });
-      if (!sorted) {
-        alert("ソート結果の配列が見つかりませんでした（backendの返却形式を確認してください）");
-        return;
-      }
-
-      setArray(sorted);
-    } catch (e) {
-      alert(`通信に失敗しました: ${String(e)}`);
+    if (!res.ok) {
+      alert(await res.text());
+      return;
     }
+
+    const data = await res.json();
+    const uiJson = toUiSortJson(arr, data);
+
+    // ★重要：runId を付ける（key再マウントで state を初期化するため）
+    setSortJson({ ...uiJson, runId: Date.now() });
   };
 
   return (
     <div className="app">
-      <h1>Sort Visualizer</h1>
+      <div className="hero">
+        <h1 className="title">Sort Visualizer</h1>
+        <p className="subtitle">backend のソートログを使って可視化します</p>
+      </div>
 
-      <div className="sorting-number">
-        <h2>配列の入力方法</h2>
+      <div className="panel">
+        <div className="panel-header">
+          <h2>配列の入力</h2>
+          <div className="meta">
+            <span>elements: {totalCount}</span>
+            <span>selected: {sortMethod}</span>
+          </div>
+        </div>
 
         <div className="input-mode">
           <label>
@@ -143,9 +173,11 @@ function App() {
 
         {inputMode === "random" && (
           <div className="random-panel">
-            <button onClick={generateRandom20}>ランダム配列を生成（20個）</button>
+            <button className="primary" onClick={generateRandom20}>
+              ランダム配列を生成（20個）
+            </button>
 
-            <div style={{ marginTop: 8 }}>
+            <div className="inline-row">
               <span>要素数指定：</span>
               <input type="text" ref={totalNumberRef} placeholder="例: 30" />
               <button onClick={generateRandomByInput}>CREATE</button>
@@ -154,43 +186,28 @@ function App() {
         )}
 
         {inputMode === "manual" && (
-          <div className="manual-panel" style={{ marginTop: 8 }}>
-            <p>例: 5,1,9,2,7,3（カンマ区切り/スペース区切りOK）</p>
+          <div className="manual-panel">
+            <p className="hint">例: 5,1,9,2,7,3（カンマ区切り/スペース区切りOK）</p>
             <input
               type="text"
               value={manualText}
               onChange={(e) => setManualText(e.target.value)}
               placeholder="5,1,9,2,7,3"
             />
-            <div style={{ marginTop: 6, fontSize: 12 }}>手動入力は START 押下時に確定します。</div>
+            <div className="hint small">手動入力は START 押下時に確定します。</div>
           </div>
         )}
       </div>
 
-      <div className="sorting-controls">
+      <div className="panel">
         <SortList value={sortMethod} onChange={setSortMethod} />
       </div>
 
-      <div className="button">
-        <button onClick={startSorting}>START</button>
-      </div>
-
-      <div style={{ marginTop: 8, fontSize: 12 }}>
-        elements: {totalCount} / selected sort: {sortMethod} / steps: {steps.length}
-      </div>
-
-      <div className="bars">
-        {array.map((value, idx) => (
-          <div
-            key={idx}
-            className="bar"
-            style={{ height: `${value * 3}px` }}
-            title={String(value)}
-          />
-        ))}
-      </div>
+      <SortVisualizer
+        sortJson={sortJson}
+        descriptionData={SORT_DESCRIPTIONS[sortMethod]}
+        onRequestSort={requestSort}
+      />
     </div>
   );
 }
-
-export default App;

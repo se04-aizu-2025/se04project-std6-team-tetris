@@ -1,23 +1,27 @@
-import React from "react";
 import Sort from "./Sort";
 
-const SortList = ({ value, onChange }) => {
-  // backend側の method 仕様に合わせる（あなたのサーバは quick/merge/... を受ける前提）
-  const SORT_SYSTEMS = [
-    { id: "quick", label: "クイックソート" },
-    { id: "merge", label: "マージソート" },
-    { id: "bubble", label: "バブルソート" },
-    { id: "insertion", label: "挿入ソート" },
-    { id: "selection", label: "選択ソート" },
-    { id: "gnome", label: "ノームソート" },
-  ];
+const SORT_METHODS = [
+  { id: "quick", label: "Quick" },
+  { id: "merge", label: "Merge" },
+  { id: "selection", label: "Selection" },
+  { id: "gnome", label: "Gnome" },
+  { id: "bubble", label: "Bubble" },
+  { id: "insertion", label: "Insertion" },
+];
 
+export default function SortList({ value, onChange }) {
   return (
     <div>
-      <h2>ソート方式</h2>
-      <Sort options={SORT_SYSTEMS} value={value} onChange={onChange} />
+      <h2>Sort Method</h2>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        {SORT_METHODS.map((m) => (
+          <Sort
+            key={m.id}
+            id={m.id}
+            label={m.label}
+            checked={value === m.id}
+            onChange={() => onChange(m.id)}
+          />
+        ))}
+      </div>
     </div>
-  );
-};
-
-export default SortList;

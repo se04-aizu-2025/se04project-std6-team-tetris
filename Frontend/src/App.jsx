@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from "react";
 import "./App.css";
-import SortList from "./components/sort-select/SortList";
 
 function App() {
   const [array, setArray] = useState([1, 47, 31, 57, 35, 23, 21, 35, 31, 49, 94]);

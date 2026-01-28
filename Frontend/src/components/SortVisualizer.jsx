@@ -13,16 +13,21 @@ export default function SortVisualizer({ sortJson, descriptionData, onRequestSor
     Array.isArray(sortJson.steps);
 
   const handleStart = async () => {
-    if (typeof onRequestSort === "function") {
-      setIsLoading(true);
-      try {
-        await onRequestSort(); // App側で sortJson が更新される（runId付き）
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    setIsStarted(true);
-  };
+  if (typeof onRequestSort !== "function") return;
+
+  setIsLoading(true);
+  try {
+    await onRequestSort(); // ここで例外が出る可能性あり
+    setIsStarted(true);    // 成功した時だけ開始
+  } catch (e) {
+    console.error(e);
+    alert(`START 失敗: ${e?.message ?? e}`);
+    // setIsStarted(false); // 必要なら明示
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const handleReset = () => {
     setIsStarted(false);

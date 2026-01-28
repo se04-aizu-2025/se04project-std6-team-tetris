@@ -236,15 +236,20 @@ static int recv_http_body(SOCKET c, char **out_body, int *out_body_len, char **o
     *out_body = decoded;
     *out_body_len = decoded_len;
   } else {
-    // Content-Length も chunked も無い → とりあえず今ある分を body として扱う（安全に小さめ）
-    if (have <= 0) { free(req); return 1; }
-    char *body = (char*)malloc((size_t)have + 1);
-    if (!body) { free(req); return 1; }
-    memcpy(body, body_ptr, (size_t)have);
-    body[have] = '\0';
-    *out_body = body;
-    *out_body_len = have;
-  }
+  // Content-Length も chunked も無い → いまある分を body として扱う
+  // ※ OPTIONS のように body が無いケース (have==0) も正しく通す
+  if (have < 0) { free(req); return 1; }
+
+  char *body = (char*)malloc((size_t)have + 1);
+  if (!body) { free(req); return 1; }
+
+  if (have > 0) memcpy(body, body_ptr, (size_t)have);
+  body[have] = '\0';
+
+  *out_body = body;
+  *out_body_len = have;
+}
+
 
   if (out_req_debug) *out_req_debug = req;
   else free(req);

@@ -3,11 +3,14 @@ import { useMemo, useRef, useCallback, useState } from "react";
 const EMPTY_ARRAY = [];
 const EMPTY_STEPS = [];
 
-// steps の最後の swap array を最終形として返す（無ければ initial）
+// steps の最後の array を最終形として返す（無ければ initial）
+// swap / set の両方を配列更新として扱う
 function getFinalFromSteps(initial, steps) {
   for (let k = steps.length - 1; k >= 0; k--) {
     const s = steps[k];
-    if (s?.type === "swap" && Array.isArray(s?.array)) return s.array;
+    if ((s?.type === "swap" || s?.type === "set") && Array.isArray(s?.array)) {
+      return s.array;
+    }
   }
   return initial;
 }
@@ -32,12 +35,17 @@ export function useSortStepper(sortJson) {
     [steps, stepIndex]
   );
 
+  // index 時点の配列状態を復元
+  // swap / set の両方を配列更新として扱う
   const arrayAt = useCallback(
     (index) => {
       if (index < 0) return initial;
+
       for (let k = index; k >= 0; k--) {
         const s = steps[k];
-        if (s?.type === "swap" && Array.isArray(s?.array)) return s.array;
+        if ((s?.type === "swap" || s?.type === "set") && Array.isArray(s?.array)) {
+          return s.array;
+        }
       }
       return initial;
     },
@@ -84,7 +92,7 @@ export function useSortStepper(sortJson) {
     setShow(finalArray);
   }, [finalArray]);
 
-  // 自動再生：effect を使わず、ボタン操作で interval を貼る（ルール回避）
+  // 自動再生：effect を使わず、ボタン操作で interval を貼る
   const startAutoNext = useCallback(() => {
     stopAuto();
     setAutoMode("forward");

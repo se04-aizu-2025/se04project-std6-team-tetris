@@ -1,8 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSortStepper } from "../hooks/useSortStepper";
 import SortDescription from "./SortDescription";
 
-export default function SortVisualizer({ sortJson, descriptionData }) {
+export default function SortVisualizer({
+  sortJson,
+  descriptionData,
+  onGenerateLog,
+  hasInputData,
+}) {
   const {
     array,
     initial,
@@ -23,12 +28,21 @@ export default function SortVisualizer({ sortJson, descriptionData }) {
     speedMs,
     setSpeedMs,
   } = useSortStepper(sortJson);
+
   const [isStarted, setIsStarted] = useState(false);
 
+  useEffect(() => {
+    if (sortJson) {
+      showFinal();
+      reset();
+      setIsStarted(true);
+    } else {
+      setIsStarted(false);
+    }
+  }, [sortJson]);
+
   const handleStart = () => {
-    showFinal(); // 完成形をshowに設定
-    reset(); // ステップ進行は最初から始める
-    setIsStarted(true);
+    onGenerateLog();
   };
 
   const handleReset = () => {
@@ -36,35 +50,77 @@ export default function SortVisualizer({ sortJson, descriptionData }) {
     setIsStarted(false);
   };
 
+  const getBarWidth = (arrayLength) => {
+    if (arrayLength <= 10) return 40;
+    if (arrayLength <= 20) return 28;
+    if (arrayLength <= 30) return 20;
+    if (arrayLength <= 40) return 16;
+    return 12;
+  };
+
+  const getBarGap = (arrayLength) => {
+    if (arrayLength <= 10) return 12;
+    if (arrayLength <= 20) return 8;
+    if (arrayLength <= 30) return 6;
+    if (arrayLength <= 40) return 4;
+    return 2;
+  };
+
+  const getHeightMultiplier = (arr) => {
+    if (arr.length === 0) return 2.5;
+    const maxValue = Math.max(...arr);
+    if (maxValue <= 30) return 2.8;
+    if (maxValue <= 50) return 2.3;
+    if (maxValue <= 70) return 1.8;
+    return 1.5;
+  };
+
+  const barWidth = getBarWidth(initial.length);
+  const barGap = getBarGap(initial.length);
+  const heightMultiplier = getHeightMultiplier(initial);
+
   return (
     <div className="sort-visualizer">
-      {/* コントロールボタン */}
-      <div className="button-group">
-        <button onClick={handleStart}>
-          START
-        </button>
-        <button onClick={handleReset}>RESET</button>
-      </div>
-
-      {/* 説明は常に表示（STARTの下） */}
       <SortDescription data={descriptionData} />
 
-      {/* Before/After を横に並べて表示 */}
+      <div className="button-group" style={{ marginTop: "20px" }}>
+        <button onClick={handleStart} disabled={!hasInputData}>
+          START
+        </button>
+        <button
+          onClick={handleReset}
+          disabled={!isStarted}
+          className="reset-button"
+        >
+          RESET
+        </button>
+      </div>
+
       {isStarted && (
         <>
           <div className="before-after-container motion-in">
             <div className="comparison-section">
-              <h3 className="section-title">Before (ソート前)</h3>
+              <h3 className="section-title">Before (unsorted)</h3>
               <div className="bars">
-                <div className="bars-inner">
+                <div className="bars-inner" style={{ gap: `${barGap}px` }}>
                   {initial.map((value, idx) => (
                     <div key={idx} className="bar-wrapper">
                       <div
                         className="bar"
-                        style={{ height: `${value * 3}px` }}
+                        style={{
+                          height: `${value * heightMultiplier}px`,
+                          width: `${barWidth}px`,
+                          minWidth: `${barWidth}px`,
+                          maxWidth: `${barWidth}px`,
+                        }}
                         title={value}
                       >
-                        <span className="bar-value">{value}</span>
+                        <span
+                          className="bar-value"
+                          style={{ fontSize: barWidth < 20 ? "9px" : "11px" }}
+                        >
+                          {value}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -73,17 +129,27 @@ export default function SortVisualizer({ sortJson, descriptionData }) {
             </div>
 
             <div className="comparison-section">
-              <h3 className="section-title">After (ソート後)</h3>
+              <h3 className="section-title">After (sorted)</h3>
               <div className="bars">
-                <div className="bars-inner">
+                <div className="bars-inner" style={{ gap: `${barGap}px` }}>
                   {show.map((value, idx) => (
                     <div key={idx} className="bar-wrapper">
                       <div
                         className="bar bar-complete"
-                        style={{ height: `${value * 3}px` }}
+                        style={{
+                          height: `${value * heightMultiplier}px`,
+                          width: `${barWidth}px`,
+                          minWidth: `${barWidth}px`,
+                          maxWidth: `${barWidth}px`,
+                        }}
                         title={value}
                       >
-                        <span className="bar-value">{value}</span>
+                        <span
+                          className="bar-value"
+                          style={{ fontSize: barWidth < 20 ? "9px" : "11px" }}
+                        >
+                          {value}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -92,15 +158,16 @@ export default function SortVisualizer({ sortJson, descriptionData }) {
             </div>
           </div>
 
-          {/* ステップごとの進行機能 */}
           <div className="step-controls motion-in">
             <div className="step-header">
-              <h3 className="section-title">ステップごとに確認</h3>
+              <h3 className="section-title">Step-by-step view</h3>
+
               <div className="speed-control">
                 <label className="speed-label">
                   Speed
                   <span className="speed-value">{speedMs}ms</span>
                 </label>
+
                 <div className="speed-slider-row">
                   <span className="speed-end speed-fast">Fast</span>
                   <input
@@ -117,21 +184,37 @@ export default function SortVisualizer({ sortJson, descriptionData }) {
               </div>
             </div>
 
-            {/* 現在のステップの配列表示 */}
             <div className="current-step-visualization">
               <div className="bars">
-                <div className="bars-inner">
+                <div className="bars-inner" style={{ gap: `${barGap}px` }}>
                   {array.map((value, idx) => {
-                    const isHighlight = idx === highlight.i || idx === highlight.j;
-                    const isSwap = currentStep?.type === "swap" && isHighlight;
+                    const isHighlight =
+                      idx === highlight.i || idx === highlight.j;
+                    const isSwap =
+                      currentStep?.type === "swap" && isHighlight;
+
                     return (
                       <div key={idx} className="bar-wrapper">
                         <div
-                          className={`bar ${isHighlight ? "bar-highlight" : ""} ${isSwap ? "bar-swap" : ""}`}
-                          style={{ height: `${value * 3}px` }}
+                          className={`bar ${isHighlight ? "bar-highlight" : ""} ${
+                            isSwap ? "bar-swap" : ""
+                          }`}
+                          style={{
+                            height: `${value * heightMultiplier}px`,
+                            width: `${barWidth}px`,
+                            minWidth: `${barWidth}px`,
+                            maxWidth: `${barWidth}px`,
+                          }}
                           title={value}
                         >
-                          <span className="bar-value">{value}</span>
+                          <span
+                            className="bar-value"
+                            style={{
+                              fontSize: barWidth < 20 ? "9px" : "11px",
+                            }}
+                          >
+                            {value}
+                          </span>
                         </div>
                       </div>
                     );
@@ -140,7 +223,6 @@ export default function SortVisualizer({ sortJson, descriptionData }) {
               </div>
             </div>
 
-            {/* 手動操作ボタン */}
             <div className="step-navigation">
               <button
                 onClick={back}
@@ -149,19 +231,27 @@ export default function SortVisualizer({ sortJson, descriptionData }) {
               >
                 ← Back
               </button>
+
               <div className="step-info">
-                <span>Step: {stepIndex + 1} / {stepsLength}</span>
+                <span>
+                  Step: {stepIndex + 1} / {stepsLength}
+                </span>
+
                 {currentStep && (
                   <span className="step-details">
                     {currentStep.type} (i={currentStep.i}, j={currentStep.j})
                   </span>
                 )}
+
                 {autoMode && (
                   <span className="auto-indicator">
-                    {autoMode === "forward" ? "▶ 自動再生中" : "◀ 自動戻し中"}
+                    {autoMode === "forward"
+                      ? "▶ Auto playing"
+                      : "◀ Auto reversing"}
                   </span>
                 )}
               </div>
+
               <button
                 onClick={next}
                 disabled={stepIndex >= stepsLength - 1 || autoMode !== null}
@@ -171,7 +261,6 @@ export default function SortVisualizer({ sortJson, descriptionData }) {
               </button>
             </div>
 
-            {/* 自動再生コントロール */}
             <div className="auto-controls">
               <button
                 onClick={startAutoBack}
@@ -197,14 +286,14 @@ export default function SortVisualizer({ sortJson, descriptionData }) {
                 Auto Next
               </button>
             </div>
-            {/* 最初からボタン */}
+
             <div className="reset-controls">
               <button
                 onClick={reset}
                 disabled={stepIndex <= -1 || autoMode !== null}
                 className="reset-button"
               >
-                最初から
+                From the beginning
               </button>
             </div>
           </div>

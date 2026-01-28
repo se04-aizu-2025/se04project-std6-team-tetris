@@ -7,11 +7,12 @@ export default function SortDescription({ data }) {
     <div className="sort-description">
       <div className="sort-description__header">
         <h3 className="sort-description__title">{data.title}</h3>
+
         {data.complexity && (
           <div className="sort-description__badges">
-            <span className="badge">平均 {data.complexity.timeAverage}</span>
-            <span className="badge">最悪 {data.complexity.timeWorst}</span>
-            <span className="badge">メモリ {data.complexity.space}</span>
+            <span className="badge">Avg: {data.complexity.timeAverage}</span>
+            <span className="badge">Worst: {data.complexity.timeWorst}</span>
+            <span className="badge">Memory: {data.complexity.space}</span>
             <span className="badge">{data.complexity.stable}</span>
           </div>
         )}
@@ -21,7 +22,7 @@ export default function SortDescription({ data }) {
 
       {Array.isArray(data.howItWorks) && data.howItWorks.length > 0 && (
         <div className="sort-description__section">
-          <div className="sort-description__sectionTitle">どう動く？</div>
+          <div className="sort-description__sectionTitle">How it works</div>
           <ol className="sort-description__list">
             {data.howItWorks.map((t, i) => (
               <li key={i}>{t}</li>
@@ -34,7 +35,7 @@ export default function SortDescription({ data }) {
         <div className="sort-description__grid">
           {data.goodFor?.length > 0 && (
             <div className="sort-description__card">
-              <div className="sort-description__sectionTitle">得意</div>
+              <div className="sort-description__sectionTitle">Good for</div>
               <ul className="sort-description__bullets">
                 {data.goodFor.map((t, i) => (
                   <li key={i}>{t}</li>
@@ -42,9 +43,10 @@ export default function SortDescription({ data }) {
               </ul>
             </div>
           )}
+
           {data.notGoodFor?.length > 0 && (
             <div className="sort-description__card">
-              <div className="sort-description__sectionTitle">苦手</div>
+              <div className="sort-description__sectionTitle">Not ideal for</div>
               <ul className="sort-description__bullets">
                 {data.notGoodFor.map((t, i) => (
                   <li key={i}>{t}</li>
@@ -57,4 +59,3 @@ export default function SortDescription({ data }) {
     </div>
   );
 }
-

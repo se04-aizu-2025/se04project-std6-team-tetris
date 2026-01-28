@@ -1,9 +1,9 @@
 CC := gcc
 CFLAGS := -I ./include -O2 -Wall -Wextra
 LDFLAGS := -mconsole
-LIBS :=
+LIBS := -lws2_32
 
-SRC := $(wildcard src/*.c)
+SRC := $(wildcard src/*.c) $(wildcard src/sort/*.c)
 OUT := log_server.exe
 
 all: $(OUT)

@@ -1,32 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-const getFinalArrayFromSteps = (json) => {
-  for (let k = json.steps.length - 1; k >= 0; k--) {
-    const step = json.steps[k];
-    if (step.type === "swap" && Array.isArray(step.array)) {
-      return step.array;
+/**
+ * 予備：今後「再生/停止/速度」ロジックを分離したくなった時用。
+ * 現状は useSortStepper に自動再生が入っているので、未使用でもOK。
+ */
+export function useSortPlayer() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [speedMs, setSpeedMs] = useState(300);
+  const timerRef = useRef(null);
+
+  const stop = () => {
+    setIsPlaying(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-  }
-  return json.initialArray ?? [];
-};
-
-export function useSortPlayer(sortJson) {
-  const initial = useMemo(() => sortJson?.initialArray ?? [], [sortJson]);
-
-  const [array, setArray] = useState(initial);
-
-  // sortJsonが変わったら初期化したいなら（任意）
-  // useEffect(() => setArray(initial), [initial]);
-
-  const start = () => {
-    if (!sortJson) return;
-    const finalArr = getFinalArrayFromSteps(sortJson);
-    setArray(finalArr);
   };
 
-  const reset = () => {
-    setArray(initial);
-  };
+  useEffect(() => () => stop(), []);
 
-  return { array, start, reset };
+  return { isPlaying, setIsPlaying, speedMs, setSpeedMs, stop, timerRef };
 }

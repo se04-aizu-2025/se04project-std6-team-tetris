@@ -56,3 +56,10 @@ void merge_sort(int arr[], int left, int right) {
     merge_sort(arr, mid + 1, right);
     merge(arr, left, mid, right);
 }
+
+void merge_sort_impl(int arr[], int left, int right, int n) {
+  (void)n; // log_output が内部で配列長を持つ設計なら使わない
+  if (left >= right) return;
+  // 既存の merge_sort(arr, left, right) を呼ぶ
+  merge_sort(arr, left, right);
+}

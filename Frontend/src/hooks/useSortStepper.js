@@ -1,186 +1,125 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useRef, useCallback, useState } from "react";
+
+const EMPTY_ARRAY = [];
+const EMPTY_STEPS = [];
+
+// steps の最後の array を最終形として返す（無ければ initial）
+// swap / set の両方を配列更新として扱う
+function getFinalFromSteps(initial, steps) {
+  for (let k = steps.length - 1; k >= 0; k--) {
+    const s = steps[k];
+    if ((s?.type === "swap" || s?.type === "set") && Array.isArray(s?.array)) {
+      return s.array;
+    }
+  }
+  return initial;
+}
 
 export function useSortStepper(sortJson) {
-  const initial = useMemo(() => sortJson?.initialArray ?? [], [sortJson]);
-  const steps = useMemo(() => sortJson?.steps ?? [], [sortJson]);
+  const initial = useMemo(() => sortJson?.initialArray ?? EMPTY_ARRAY, [sortJson]);
+  const steps = useMemo(() => sortJson?.steps ?? EMPTY_STEPS, [sortJson]);
 
-  const [array, setArray] = useState(initial);
-  const [stepIndex, setStepIndex] = useState(-1); // -1 = まだ何もしてない状態
-  const [highlight, setHighlight] = useState({ i: null, j: null }); // 光らせる棒
-  const [show,setShow] = useState(initial);
+  // 最終形（Afterの初期表示を完成形に寄せたいので使う）
+  const finalArray = useMemo(() => getFinalFromSteps(initial, steps), [initial, steps]);
+
+  // ★ key再マウント前提なので、初期値は initializer でOK（useEffectでsetStateしない）
+  const [stepIndex, setStepIndex] = useState(-1);
+  const [show, setShow] = useState(() => finalArray);
+
   const [autoMode, setAutoMode] = useState(null); // 'forward' | 'backward' | null
-  const [speedMs, setSpeedMs] = useState(300); // 自動再生の速度（ms）
+  const [speedMs, setSpeedMs] = useState(300);
   const intervalRef = useRef(null);
 
-  // sortJson が変わったら初期化
-  useEffect(() => {
-    setArray(initial);
-    setStepIndex(-1);
-    setHighlight({ i: null, j: null });
-  }, [initial]);
+  const currentStep = useMemo(
+    () => (stepIndex >= 0 ? steps[stepIndex] : null),
+    [steps, stepIndex]
+  );
 
-  const applyStep = (index) => {
-    // index が -1 のときは初期状態
-    if (index < 0) {
-      setArray(initial);
-      setHighlight({ i: null, j: null });
-      return;
-    }
+  // index 時点の配列状態を復元
+  // swap / set の両方を配列更新として扱う
+  const arrayAt = useCallback(
+    (index) => {
+      if (index < 0) return initial;
 
-    const step = steps[index];
-    if (!step) return;
-
-    // compare / swap / noswap どれでも i,j はあるのでハイライトする
-    setHighlight({ i: step.i, j: step.j });
-
-    // swap のときだけ array が更新される（JSONに array が入っている）
-    if (step.type === "swap" && Array.isArray(step.array)) {
-      setArray(step.array);
-    }
-  };
-
-  const next = () => {
-    // 手動操作で自動再生を停止
-    if (autoMode) {
-      stopAuto();
-    }
-    setStepIndex((prev) => {
-      const newIndex = Math.min(prev + 1, steps.length - 1);
-      applyStep(newIndex);
-      return newIndex;
-    });
-  };
-
-  const back = () => {
-    // 手動操作で自動再生を停止
-    if (autoMode) {
-      stopAuto();
-    }
-    setStepIndex((prev) => {
-      const newIndex = Math.max(prev - 1, -1);
-      // 戻すときは注意：swap前の配列を復元する必要がある
-      // ここでは「最も近い過去の swap array」から復元する
-      // （初期状態まで戻れる）
-      restoreArrayAtStep(newIndex);
-      applyStep(newIndex);
-      return newIndex;
-    });
-  };
-
-  const restoreArrayAtStep = (index) => {
-    // indexまでに起きた最後のswapの配列を探す
-    if (index < 0) {
-      setArray(initial);
-      return;
-    }
-    for (let k = index; k >= 0; k--) {
-      const s = steps[k];
-      if (s.type === "swap" && Array.isArray(s.array)) {
-        setArray(s.array);
-        return;
+      for (let k = index; k >= 0; k--) {
+        const s = steps[k];
+        if ((s?.type === "swap" || s?.type === "set") && Array.isArray(s?.array)) {
+          return s.array;
+        }
       }
-    }
-    // swapが一度もないなら初期配列
-    setArray(initial);
-  };
+      return initial;
+    },
+    [steps, initial]
+  );
 
-  const reset = () => {
-    stopAuto(); // リセット時に自動再生も停止
-    setArray(initial);
-    setStepIndex(-1);
-    setHighlight({ i: null, j: null });
-  };
+  const array = useMemo(() => arrayAt(stepIndex), [arrayAt, stepIndex]);
 
-  // 画面全体を「最初の状態」に戻す（After表示も初期に戻す）
-  const resetAll = () => {
-    stopAuto();
-    setArray(initial);
-    setStepIndex(-1);
-    setHighlight({ i: null, j: null });
-    setShow(initial);
-  };
+  const highlight = useMemo(() => {
+    if (!currentStep) return { i: null, j: null };
+    return { i: currentStep.i ?? null, j: currentStep.j ?? null };
+  }, [currentStep]);
 
-  // 「完成形を一気に表示」も残す
-  const showFinal = () => {
-    // 最後のswap array or initial
-    for (let k = steps.length - 1; k >= 0; k--) {
-      const s = steps[k];
-      if (s.type === "swap" && Array.isArray(s.array)) {
-        setShow(s.array);
-        return;
-      }
-    }
-    setShow(initial);
-  };
-
-  // 自動再生を停止
-  const stopAuto = () => {
+  const stopAuto = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     setAutoMode(null);
-  };
-
-  // 自動で進む
-  const startAutoNext = () => {
-    stopAuto(); // 既存の自動再生を停止
-    setAutoMode('forward');
-  };
-
-  // 自動で戻る
-  const startAutoBack = () => {
-    stopAuto(); // 既存の自動再生を停止
-    setAutoMode('backward');
-  };
-
-  // 自動再生のロジック
-  useEffect(() => {
-    if (autoMode === null) {
-      return;
-    }
-
-    intervalRef.current = setInterval(() => {
-      if (autoMode === 'forward') {
-        setStepIndex((prev) => {
-          if (prev >= steps.length - 1) {
-            stopAuto(); // 最後まで到達したら停止
-            return prev;
-          }
-          const newIndex = prev + 1;
-          applyStep(newIndex);
-          return newIndex;
-        });
-      } else if (autoMode === 'backward') {
-        setStepIndex((prev) => {
-          if (prev <= -1) {
-            stopAuto(); // 最初まで到達したら停止
-            return prev;
-          }
-          const newIndex = prev - 1;
-          restoreArrayAtStep(newIndex);
-          applyStep(newIndex);
-          return newIndex;
-        });
-      }
-    }, speedMs);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [autoMode, steps.length, speedMs]);
-
-  // コンポーネントのアンマウント時にクリーンアップ
-  useEffect(() => {
-    return () => {
-      stopAuto();
-    };
   }, []);
 
-  const currentStep = stepIndex >= 0 ? steps[stepIndex] : null;
+  const next = useCallback(() => {
+    if (autoMode) stopAuto();
+    setStepIndex((prev) => Math.min(prev + 1, steps.length - 1));
+  }, [autoMode, stopAuto, steps.length]);
+
+  const back = useCallback(() => {
+    if (autoMode) stopAuto();
+    setStepIndex((prev) => Math.max(prev - 1, -1));
+  }, [autoMode, stopAuto]);
+
+  const reset = useCallback(() => {
+    stopAuto();
+    setStepIndex(-1);
+  }, [stopAuto]);
+
+  const resetAll = useCallback(() => {
+    stopAuto();
+    setStepIndex(-1);
+    setShow(initial);
+  }, [stopAuto, initial]);
+
+  const showFinal = useCallback(() => {
+    setShow(finalArray);
+  }, [finalArray]);
+
+  // 自動再生：effect を使わず、ボタン操作で interval を貼る
+  const startAutoNext = useCallback(() => {
+    stopAuto();
+    setAutoMode("forward");
+    intervalRef.current = setInterval(() => {
+      setStepIndex((prev) => {
+        if (prev >= steps.length - 1) {
+          stopAuto();
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, speedMs);
+  }, [stopAuto, steps.length, speedMs]);
+
+  const startAutoBack = useCallback(() => {
+    stopAuto();
+    setAutoMode("backward");
+    intervalRef.current = setInterval(() => {
+      setStepIndex((prev) => {
+        if (prev <= -1) {
+          stopAuto();
+          return prev;
+        }
+        return prev - 1;
+      });
+    }, speedMs);
+  }, [stopAuto, speedMs]);
 
   return {
     array,

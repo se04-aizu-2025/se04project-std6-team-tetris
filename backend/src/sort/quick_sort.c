@@ -39,3 +39,9 @@ void quick_sort(int arr[], int left, int right) {
     quick_sort(arr, left, p - 1);
     quick_sort(arr, p + 1, right);
 }
+
+void quick_sort_impl(int arr[], int n) {
+  if (n <= 1) return;
+  // 既存の quick_sort(arr, left, right) を呼ぶ
+  quick_sort(arr, 0, n - 1);
+}

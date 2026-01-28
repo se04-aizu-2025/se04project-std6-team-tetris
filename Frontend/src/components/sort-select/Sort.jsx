@@ -1,25 +1,14 @@
-import React from "react";
-
-const Sort = ({ options, value, onChange }) => {
-    
+export default function Sort({ id, label, checked, onChange }) {
   return (
-    <div>
-        {options.map((opt) => (
-
-            <label key={opt.id}>
-                <input
-                  type="radio"
-                  name="sorting-method"
-                  value={opt.id}
-                  checked={value === opt.id}
-                  onChange={() => onChange(opt.id)}
-                />
-                {opt.label}
-            </label>
-
-        ))}
-    </div>
+    <label className={`sort-pill ${checked ? "active" : ""}`}>
+      <input
+        type="radio"
+        name="sort-method"
+        value={id}
+        checked={checked}
+        onChange={onChange}
+      />
+      <span>{label}</span>
+    </label>
   );
-};
-
-export default Sort;
+}

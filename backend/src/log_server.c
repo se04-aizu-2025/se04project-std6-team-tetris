@@ -1,6 +1,21 @@
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#ifdef _WIN32
+  #define _WINSOCK_DEPRECATED_NO_WARNINGS
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+  typedef SOCKET socket_t;
+  #define CLOSESOCK closesocket
+#else
+  #include <sys/types.h>
+  #include <sys/socket.h>
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
+  #include <unistd.h>
+  #include <errno.h>
+  typedef int socket_t;
+  #define INVALID_SOCKET (-1)
+  #define CLOSESOCK close
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,23 +24,17 @@
 #include "../include/sort.h"
 #include "../include/log_output.h"
 
-// -------------------------
-// util: send
-// -------------------------
-static int send_all(SOCKET s, const char *buf, int len) {
+static int send_all(socket_t s, const char *buf, int len) {
   int sent = 0;
   while (sent < len) {
-    int r = send(s, buf + sent, len - sent, 0);
+    int r = (int)send(s, buf + sent, (size_t)(len - sent), 0);
     if (r <= 0) return 1;
     sent += r;
   }
   return 0;
 }
 
-// -------------------------
-// response helpers
-// -------------------------
-static void send_text(SOCKET c, int code, const char *msg) {
+static void send_text(socket_t c, int code, const char *msg) {
   const char *status =
     (code == 200) ? "200 OK" :
     (code == 204) ? "204 No Content" :
@@ -35,7 +44,7 @@ static void send_text(SOCKET c, int code, const char *msg) {
 
   int len = msg ? (int)strlen(msg) : 0;
   char header[512];
-  sprintf_s(header, sizeof(header),
+  snprintf(header, sizeof(header),
     "HTTP/1.1 %s\r\n"
     "Content-Type: text/plain\r\n"
     "Access-Control-Allow-Origin: *\r\n"
@@ -48,9 +57,9 @@ static void send_text(SOCKET c, int code, const char *msg) {
   if (len) send_all(c, msg, len);
 }
 
-static void send_json(SOCKET c, const char *json, int json_len) {
+static void send_json(socket_t c, const char *json, int json_len) {
   char header[512];
-  sprintf_s(header, sizeof(header),
+  snprintf(header, sizeof(header),
     "HTTP/1.1 200 OK\r\n"
     "Content-Type: application/json\r\n"
     "Access-Control-Allow-Origin: *\r\n"
@@ -63,7 +72,7 @@ static void send_json(SOCKET c, const char *json, int json_len) {
   send_all(c, json, json_len);
 }
 
-static void send_preflight(SOCKET c) {
+static void send_preflight(socket_t c) {
   const char *res =
     "HTTP/1.1 204 No Content\r\n"
     "Access-Control-Allow-Origin: *\r\n"
@@ -73,9 +82,6 @@ static void send_preflight(SOCKET c) {
   send_all(c, res, (int)strlen(res));
 }
 
-// -------------------------
-// helpers: request parsing
-// -------------------------
 static int starts_with(const char *s, const char *prefix) {
   return strncmp(s, prefix, (int)strlen(prefix)) == 0;
 }
@@ -91,7 +97,6 @@ static int parse_content_length(const char *req) {
 static int has_chunked_encoding(const char *req) {
   const char *p = strstr(req, "Transfer-Encoding:");
   if (!p) return 0;
-  // 雑に "chunked" を含むか
   return strstr(p, "chunked") != NULL;
 }
 
@@ -100,9 +105,6 @@ static char* find_header_end(char *req) {
   return p ? (p + 4) : NULL;
 }
 
-// -------------------------
-// recv: read until header complete, then body (Content-Length or chunked)
-// -------------------------
 static int ensure_cap(char **buf, int *cap, int need) {
   if (need <= *cap) return 0;
   int nc = (*cap == 0) ? 8192 : (*cap * 2);
@@ -114,16 +116,15 @@ static int ensure_cap(char **buf, int *cap, int need) {
   return 0;
 }
 
-static int recv_more(SOCKET c, char **buf, int *cap, int *len, int want) {
+static int recv_more(socket_t c, char **buf, int *cap, int *len, int want) {
   if (ensure_cap(buf, cap, *len + want + 1) != 0) return 1;
-  int r = recv(c, *buf + *len, want, 0);
+  int r = (int)recv(c, *buf + *len, (size_t)want, 0);
   if (r <= 0) return 1;
   *len += r;
   (*buf)[*len] = '\0';
   return 0;
 }
 
-// chunked デコード：in の chunked body をデコードして out を返す（malloc）
 static int decode_chunked(const char *in, int in_len, char **out, int *out_len) {
   int pos = 0;
   int cap = 0;
@@ -131,7 +132,6 @@ static int decode_chunked(const char *in, int in_len, char **out, int *out_len) 
   char *buf = NULL;
 
   while (pos < in_len) {
-    // サイズ行（16進数）を読む（\r\nまで）
     int line_start = pos;
     int line_end = -1;
     for (int i = pos; i + 1 < in_len; i++) {
@@ -139,7 +139,6 @@ static int decode_chunked(const char *in, int in_len, char **out, int *out_len) 
     }
     if (line_end < 0) { free(buf); return 1; }
 
-    // hex parse
     char tmp[32];
     int line_len = line_end - line_start;
     if (line_len <= 0 || line_len >= (int)sizeof(tmp)) { free(buf); return 1; }
@@ -147,15 +146,13 @@ static int decode_chunked(const char *in, int in_len, char **out, int *out_len) 
     tmp[line_len] = '\0';
 
     unsigned chunk_sz = 0;
-    // chunk extensions もありうるので ';' 以降無視
     char *semi = strchr(tmp, ';');
     if (semi) *semi = '\0';
-    if (sscanf_s(tmp, "%x", &chunk_sz) != 1) { free(buf); return 1; }
+    if (sscanf(tmp, "%x", &chunk_sz) != 1) { free(buf); return 1; }
 
-    pos = line_end + 2; // skip \r\n
+    pos = line_end + 2;
 
     if (chunk_sz == 0) {
-      // 終端: 0\r\n\r\n (trailerは無視)
       *out = buf ? buf : (char*)calloc(1,1);
       *out_len = len;
       return 0;
@@ -170,7 +167,6 @@ static int decode_chunked(const char *in, int in_len, char **out, int *out_len) 
 
     pos += (int)chunk_sz;
 
-    // chunk の後の \r\n をスキップ
     if (!(pos + 1 < in_len && in[pos] == '\r' && in[pos+1] == '\n')) { free(buf); return 1; }
     pos += 2;
   }
@@ -179,12 +175,10 @@ static int decode_chunked(const char *in, int in_len, char **out, int *out_len) 
   return 1;
 }
 
-// body を確実に取り出して返す（malloc）
-static int recv_http_body(SOCKET c, char **out_body, int *out_body_len, char **out_req_debug) {
+static int recv_http_body(socket_t c, char **out_body, int *out_body_len, char **out_req_debug) {
   char *req = NULL;
   int cap = 0, len = 0;
 
-  // ヘッダ終端まで読む
   for (;;) {
     if (recv_more(c, &req, &cap, &len, 4096) != 0) { free(req); return 1; }
     if (strstr(req, "\r\n\r\n")) break;
@@ -201,7 +195,6 @@ static int recv_http_body(SOCKET c, char **out_body, int *out_body_len, char **o
   int chunked = has_chunked_encoding(req);
 
   if (content_len >= 0) {
-    // Content-Length 指定分読む
     while (have < content_len) {
       if (recv_more(c, &req, &cap, &len, 4096) != 0) { free(req); return 1; }
       have = len - header_len;
@@ -213,15 +206,12 @@ static int recv_http_body(SOCKET c, char **out_body, int *out_body_len, char **o
     *out_body = body;
     *out_body_len = content_len;
   } else if (chunked) {
-    // chunked: 終端 0\r\n\r\n が来るまで読み続ける
-    // ひとまず受信バッファに "0\r\n\r\n" が見えるまで読む
     for (;;) {
-      // header部分の後ろ（body領域）に終端があるか探す
       const char *body_all = req + header_len;
       int body_all_len = len - header_len;
       if (body_all_len >= 5 && strstr(body_all, "\r\n0\r\n\r\n")) break;
       if (recv_more(c, &req, &cap, &len, 4096) != 0) { free(req); return 1; }
-      if (len > 4000000) { free(req); return 1; } // 過剰防止
+      if (len > 4000000) { free(req); return 1; }
     }
 
     const char *chunk_body = req + header_len;
@@ -236,29 +226,20 @@ static int recv_http_body(SOCKET c, char **out_body, int *out_body_len, char **o
     *out_body = decoded;
     *out_body_len = decoded_len;
   } else {
-  // Content-Length も chunked も無い → いまある分を body として扱う
-  // ※ OPTIONS のように body が無いケース (have==0) も正しく通す
-  if (have < 0) { free(req); return 1; }
-
-  char *body = (char*)malloc((size_t)have + 1);
-  if (!body) { free(req); return 1; }
-
-  if (have > 0) memcpy(body, body_ptr, (size_t)have);
-  body[have] = '\0';
-
-  *out_body = body;
-  *out_body_len = have;
-}
-
+    if (have < 0) { free(req); return 1; }
+    char *body = (char*)malloc((size_t)have + 1);
+    if (!body) { free(req); return 1; }
+    if (have > 0) memcpy(body, body_ptr, (size_t)have);
+    body[have] = '\0';
+    *out_body = body;
+    *out_body_len = have;
+  }
 
   if (out_req_debug) *out_req_debug = req;
   else free(req);
   return 0;
 }
 
-// -------------------------
-// minimal JSON parsing: {"method":"merge","array":[...]} 
-// -------------------------
 static int parse_method(const char *body, char *out, size_t outsz) {
   const char *p = strstr(body, "\"method\"");
   if (!p) return 1;
@@ -310,11 +291,7 @@ static int parse_array(const char *body, int **out_arr, int *out_n) {
   return 0;
 }
 
-// -------------------------
-// core handler
-// -------------------------
-static int handle_client(SOCKET c) {
-  // まず body を確実に取り出す
+static int handle_client(socket_t c) {
   char *body = NULL;
   int body_len = 0;
   char *req_debug = NULL;
@@ -325,7 +302,6 @@ static int handle_client(SOCKET c) {
     return 0;
   }
 
-  // OPTIONS 判定はヘッダを見る必要があるので req_debug で判断
   if (req_debug && starts_with(req_debug, "OPTIONS ")) {
     send_preflight(c);
     free(body);
@@ -333,7 +309,6 @@ static int handle_client(SOCKET c) {
     return 0;
   }
 
-  // POST /sort のみ
   if (!(req_debug && starts_with(req_debug, "POST /sort "))) {
     send_text(c, 404, "Not Found");
     free(body);
@@ -341,7 +316,6 @@ static int handle_client(SOCKET c) {
     return 0;
   }
 
-  // JSON parse
   char method[32];
   int *arr = NULL;
   int n = 0;
@@ -357,7 +331,6 @@ static int handle_client(SOCKET c) {
   free(body);
   free(req_debug);
 
-  // sort & log json
   int *work = array_dup(arr, (size_t)n);
   if (!work) {
     free(arr);
@@ -386,20 +359,21 @@ static int handle_client(SOCKET c) {
   return 0;
 }
 
-// -------------------------
-// server entry
-// -------------------------
 int run_log_server_8081(void) {
+#ifdef _WIN32
   WSADATA wsa;
   if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
     fprintf(stderr, "WSAStartup failed\n");
     return 1;
   }
+#endif
 
-  SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  socket_t s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (s == INVALID_SOCKET) {
     fprintf(stderr, "socket failed\n");
+#ifdef _WIN32
     WSACleanup();
+#endif
     return 1;
   }
 
@@ -409,34 +383,57 @@ int run_log_server_8081(void) {
   addr.sin_port = htons(8081);
   addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-  int opt = 1;
+  // int opt = 1;
+  // setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, (socklen_t)sizeof(opt));
+
+
+int opt = 1;
+#ifdef _WIN32
   setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+#else
+  setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+#endif
 
-  if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
-    fprintf(stderr, "bind failed\n");
-    closesocket(s);
-    WSACleanup();
-    return 1;
-  }
 
-  if (listen(s, 16) != 0) {
-    fprintf(stderr, "listen failed\n");
-    closesocket(s);
-    WSACleanup();
-    return 1;
-  }
+if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+#ifdef _WIN32
+  fprintf(stderr, "bind: %d\n", WSAGetLastError());
+#else
+  perror("bind");
+#endif
+  CLOSESOCK(s);
+#ifdef _WIN32
+  WSACleanup();
+#endif
+  return 1;
+}
 
-  printf("backend listening on http://127.0.0.1:8081\n");
+if (listen(s, 16) != 0) {
+#ifdef _WIN32
+  fprintf(stderr, "listen: %d\n", WSAGetLastError());
+#else
+  perror("listen");
+#endif
+  CLOSESOCK(s);
+#ifdef _WIN32
+  WSACleanup();
+#endif
+  return 1;
+}
+
+printf("backend listening on http://127.0.0.1:8081\n");
 
   for (;;) {
-    SOCKET c = accept(s, NULL, NULL);
+    socket_t c = accept(s, NULL, NULL);
     if (c == INVALID_SOCKET) continue;
     handle_client(c);
-    closesocket(c);
+    CLOSESOCK(c);
   }
 
-  // not reached
-  closesocket(s);
+  CLOSESOCK(s);
+#ifdef _WIN32
   WSACleanup();
+#endif
   return 0;
 }
+

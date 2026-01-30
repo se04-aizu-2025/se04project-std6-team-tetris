@@ -507,7 +507,8 @@ const SORT_METHODS = [
                           ? 'rgba(16, 185, 129, 0.1)' 
                           : 'rgba(239, 68, 68, 0.1)',
                         border: `2px solid ${result.passed ? '#10b981' : '#ef4444'}`,
-                        alignItems: 'center'
+                        alignItems: 'center',
+                        color: '#1e293b'
                       }}
                     >
                       <div>

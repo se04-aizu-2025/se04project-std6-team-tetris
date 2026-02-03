@@ -1,0 +1,25 @@
+CC := gcc
+CFLAGS := -I ./include -O2 -Wall -Wextra
+SRC := $(wildcard src/*.c) $(wildcard src/sort/*.c)
+
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)
+  OUT := log_server
+  LDFLAGS :=
+  LIBS :=
+else
+  OUT := log_server.exe
+  LDFLAGS := -mconsole
+  LIBS := -lws2_32
+endif
+
+all: $(OUT)
+
+$(OUT): $(SRC)
+	$(CC) $(CFLAGS) $(SRC) -o $@ $(LDFLAGS) $(LIBS)
+
+clean:
+	rm -f $(OUT)
+
+.PHONY: all clean

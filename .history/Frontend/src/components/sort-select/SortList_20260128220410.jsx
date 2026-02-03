@@ -2,13 +2,13 @@ import Sort from "./Sort";
 
 const SORT_METHODS = [
   { id: "quick", label: "Quick" },
-
   { id: "merge", label: "Merge" },
   { id: "selection", label: "Selection" },
   { id: "gnome", label: "Gnome" },
   { id: "bubble", label: "Bubble" },
   { id: "insertion", label: "Insertion" },
 ];
+
 export default function SortList({ value, onChange }) {
   return (
     <div>

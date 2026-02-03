@@ -1,0 +1,57 @@
+.app {
+  min-height: 100vh;
+  padding: 24px;
+  background: #111827;
+  color: #e5e7eb;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+button {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 320px;
+  border-radius: 8px;
+  background: #1f2937;
+  padding: 8px;
+}
+
+.bar {
+  width: 12px;
+  background: #60a5fa;
+  border-radius: 4px 4px 0 0;
+}
+
+.number-list {
+
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+}
+
+.number-list li {
+  background: #4f46e5;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-weight: bold;
+}

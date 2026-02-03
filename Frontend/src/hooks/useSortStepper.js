@@ -3,8 +3,6 @@ import { useMemo, useRef, useCallback, useState } from "react";
 const EMPTY_ARRAY = [];
 const EMPTY_STEPS = [];
 
-// steps の最後の array を最終形として返す（無ければ initial）
-// swap / set の両方を配列更新として扱う
 function getFinalFromSteps(initial, steps) {
   for (let k = steps.length - 1; k >= 0; k--) {
     const s = steps[k];
@@ -19,24 +17,21 @@ export function useSortStepper(sortJson) {
   const initial = useMemo(() => sortJson?.initialArray ?? EMPTY_ARRAY, [sortJson]);
   const steps = useMemo(() => sortJson?.steps ?? EMPTY_STEPS, [sortJson]);
 
-  // 最終形（Afterの初期表示を完成形に寄せたいので使う）
   const finalArray = useMemo(() => getFinalFromSteps(initial, steps), [initial, steps]);
 
-  // ★ key再マウント前提なので、初期値は initializer でOK（useEffectでsetStateしない）
   const [stepIndex, setStepIndex] = useState(-1);
   const [show, setShow] = useState(() => finalArray);
 
-  const [autoMode, setAutoMode] = useState(null); // 'forward' | 'backward' | null
-  const [speedMs, setSpeedMs] = useState(300);
-  const intervalRef = useRef(null);
+  const [autoMode, setAutoMode] = useState(null); 
+  const [speedMs, _setSpeedMs] = useState(300);
+  const speedRef = useRef(300);
+  const timeoutRef = useRef(null);
 
   const currentStep = useMemo(
     () => (stepIndex >= 0 ? steps[stepIndex] : null),
     [steps, stepIndex]
   );
 
-  // index 時点の配列状態を復元
-  // swap / set の両方を配列更新として扱う
   const arrayAt = useCallback(
     (index) => {
       if (index < 0) return initial;
@@ -60,9 +55,9 @@ export function useSortStepper(sortJson) {
   }, [currentStep]);
 
   const stopAuto = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
     setAutoMode(null);
   }, []);
@@ -92,11 +87,18 @@ export function useSortStepper(sortJson) {
     setShow(finalArray);
   }, [finalArray]);
 
-  // 自動再生：effect を使わず、ボタン操作で interval を貼る
+  const setSpeedMs = useCallback((ms) => {
+    const v = Number(ms);
+    speedRef.current = v;
+    _setSpeedMs(v);
+  }, []);
+
+
   const startAutoNext = useCallback(() => {
     stopAuto();
     setAutoMode("forward");
-    intervalRef.current = setInterval(() => {
+
+    const tick = () => {
       setStepIndex((prev) => {
         if (prev >= steps.length - 1) {
           stopAuto();
@@ -104,13 +106,17 @@ export function useSortStepper(sortJson) {
         }
         return prev + 1;
       });
-    }, speedMs);
-  }, [stopAuto, steps.length, speedMs]);
+      timeoutRef.current = setTimeout(tick, speedRef.current);
+    };
+
+    timeoutRef.current = setTimeout(tick, speedRef.current);
+  }, [stopAuto, steps.length]);
 
   const startAutoBack = useCallback(() => {
     stopAuto();
     setAutoMode("backward");
-    intervalRef.current = setInterval(() => {
+
+    const tick = () => {
       setStepIndex((prev) => {
         if (prev <= -1) {
           stopAuto();
@@ -118,8 +124,12 @@ export function useSortStepper(sortJson) {
         }
         return prev - 1;
       });
-    }, speedMs);
-  }, [stopAuto, speedMs]);
+
+      timeoutRef.current = setTimeout(tick, speedRef.current);
+    };
+
+    timeoutRef.current = setTimeout(tick, speedRef.current);
+  }, [stopAuto]);
 
   return {
     array,

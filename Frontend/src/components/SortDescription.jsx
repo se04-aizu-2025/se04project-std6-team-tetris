@@ -3,22 +3,26 @@ export default function SortDescription({ data }) {
 
   return (
     <div className="sort-description">
-      <h3 className="section-title">説明</h3>
+      <h3 className="section-title">Description</h3>
+
       <div className="desc-grid">
         <div className="desc-item">
-          <div className="desc-label">概要</div>
+          <div className="desc-label">Overview</div>
           <div className="desc-value">{data.summary}</div>
         </div>
+
         <div className="desc-item">
-          <div className="desc-label">計算量</div>
+          <div className="desc-label">Time / Space Complexity</div>
           <div className="desc-value">{data.complexity}</div>
         </div>
+
         <div className="desc-item">
-          <div className="desc-label">安定性</div>
+          <div className="desc-label">Stability</div>
           <div className="desc-value">{data.stable}</div>
         </div>
+
         <div className="desc-item">
-          <div className="desc-label">特徴</div>
+          <div className="desc-label">Notes</div>
           <div className="desc-value">{data.notes}</div>
         </div>
       </div>

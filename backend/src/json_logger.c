@@ -43,7 +43,7 @@ void jl_append(const char *s) {
 
 void jl_append_int(int v) {
   char tmp[64];
-  sprintf_s(tmp, sizeof(tmp), "%d", v);
+  snprintf(tmp, sizeof(tmp), "%d", v);
   jl_append(tmp);
 }
 

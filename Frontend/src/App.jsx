@@ -5,12 +5,6 @@ import SortList from "./components/sort-select/SortList";
 import SortVisualizer from "./components/SortVisualizer";
 import { SORT_DESCRIPTIONS } from "./data/sortDescriptions";
 
-/**
- * backend の返却を UI(useSortStepper)互換に変換する
- * 必須:
- * - initialArray: number[]
- * - steps: [{type,i,j,array?}]  ※ swap のときだけ array がある前提
- */
 function toUiSortJson(inputArray, data) {
   const rawSteps = Array.isArray(data?.steps) ? data.steps : [];
 
@@ -20,21 +14,19 @@ function toUiSortJson(inputArray, data) {
     Array.isArray(data?.initialArr) ? data.initialArr :
     inputArray;
 
-  // swap step に array が既に入っているなら、そのまま通す
   const swapHasArray = rawSteps.some(
     (s) => s?.type === "swap" && Array.isArray(s?.array)
   );
+
   if (swapHasArray) {
     return { initialArray, steps: rawSteps };
   }
 
-  // swap の array が無い場合は、フロントで復元して swap のときだけ array を付与
   let cur = [...initialArray];
 
   const steps = rawSteps.map((s) => {
     const type = s?.type ?? "step";
 
-    // backend 側キー揺れ対応（必要なら増やしてOK）
     const i = Number(s?.i ?? s?.left ?? s?.a ?? s?.index1);
     const j = Number(s?.j ?? s?.right ?? s?.b ?? s?.index2);
 
@@ -51,20 +43,43 @@ function toUiSortJson(inputArray, data) {
 
   return { initialArray, steps };
 }
+function parseManualArraySilent(text) {
+  const nums = String(text ?? "")
+    .trim()
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map((x) => Number(x));
+
+  if (nums.length === 0) return { ok: false, nums: [], error: "" };
+  if (nums.some((n) => !Number.isFinite(n))) {
+    return { ok: false, nums: [], error: "Please enter numbers only (separated by commas/spaces)" };
+  }
+  const outOfRange = nums.some((n) => n < 1 || n > 100);
+  if (outOfRange) {
+    return { ok: false, nums, error: "Please enter a value between 1 and 100" };
+  }
+  if (nums.length > 20) {
+    return { ok: false, nums, error: "Too many elements (maximum 20)." };
+  }
+
+  return { ok: true, nums, error: "" };
+}
 
 export default function App() {
   const [sortMethod, setSortMethod] = useState("quick");
 
-  const [inputMode, setInputMode] = useState("random"); // "random" | "manual"
+  const [inputMode, setInputMode] = useState("random");
   const [manualText, setManualText] = useState("");
   const totalNumberRef = useRef(null);
 
   const [inputArray, setInputArray] = useState([1, 47, 31, 57, 35, 23, 21, 35, 31, 49, 94]);
-
-  // UI に渡すログ
   const [sortJson, setSortJson] = useState(null);
-
+  const [manualError, setManualError] = useState("");
   const totalCount = useMemo(() => inputArray.length, [inputArray]);
+  const manualPreview = useMemo(() => {
+    const parsed = parseManualArraySilent(manualText);
+    return parsed;
+  }, [manualText]);
 
   const generateRandomArray = (n) => {
     const tmp = Array.from({ length: n }, () => Math.floor(Math.random() * 100) + 1);
@@ -77,8 +92,8 @@ export default function App() {
     const raw = totalNumberRef.current?.value ?? "";
     const n = Number(raw);
 
-    if (!Number.isInteger(n) || n <= 0 || n > 200) {
-      alert("要素数は 1〜200 の整数で入力してください。");
+    if (!Number.isInteger(n) || n <= 0 || n > 20) {
+      alert("Please enter an integer between 1 and 20 for the number of elements.");
       return;
     }
 
@@ -86,32 +101,22 @@ export default function App() {
     if (totalNumberRef.current) totalNumberRef.current.value = "";
   };
 
-  const parseManualArray = () => {
-    const nums = manualText
-      .split(/[\s,]+/)
-      .filter(Boolean)
-      .map((x) => Number(x));
+  const saveManualToArray = () => {
+    const parsed = parseManualArraySilent(manualText);
 
-    if (nums.length === 0 || nums.some((n) => !Number.isFinite(n))) {
-      alert("手動入力は、例: 5,1,9,2,7,3 のように数値で入力してください。");
-      return null;
+    if (!parsed.ok) {
+      setManualError(parsed.error || "入力を確認してください。");
+      return;
     }
-    return nums;
+    setManualError("");
+    setInputArray(parsed.nums);
   };
 
-  // SortVisualizer の START から呼ばれる：backend へ投げて sortJson を更新
   const requestSort = async () => {
-    let arr = inputArray;
-
-    if (inputMode === "manual") {
-      const parsed = parseManualArray();
-      if (!parsed) return;
-      arr = parsed;
-      setInputArray(parsed);
-    }
+    const arr = inputArray;
 
     if (!Array.isArray(arr) || arr.length === 0) {
-      alert("配列が空です。ランダム生成または手動入力してください。");
+      alert("The array is empty. Please generate a random array or enter values manually.");
       return;
     }
 
@@ -129,7 +134,6 @@ export default function App() {
     const data = await res.json();
     const uiJson = toUiSortJson(arr, data);
 
-    // ★重要：runId を付ける（key再マウントで state を初期化するため）
     setSortJson({ ...uiJson, runId: Date.now() });
   };
 
@@ -137,12 +141,12 @@ export default function App() {
     <div className="app">
       <div className="hero">
         <h1 className="title">Sort Visualizer</h1>
-        <p className="subtitle">backend のソートログを使って可視化します</p>
+        <p className="subtitle">Visualize sorting using backend sort logs</p>
       </div>
 
       <div className="panel">
         <div className="panel-header">
-          <h2>配列の入力</h2>
+          <h2>Array Input</h2>
           <div className="meta">
             <span>elements: {totalCount}</span>
             <span>selected: {sortMethod}</span>
@@ -157,7 +161,7 @@ export default function App() {
               checked={inputMode === "random"}
               onChange={() => setInputMode("random")}
             />
-            ランダム生成
+            Random Creating
           </label>
 
           <label>
@@ -167,19 +171,18 @@ export default function App() {
               checked={inputMode === "manual"}
               onChange={() => setInputMode("manual")}
             />
-            手動入力
+            Self Creating
           </label>
         </div>
 
         {inputMode === "random" && (
           <div className="random-panel">
             <button className="primary" onClick={generateRandom20}>
-              ランダム配列を生成（20個）
+              Generate Random Array (※Elements lange: min:1 max: 20 )
             </button>
-
             <div className="inline-row">
-              <span>要素数指定：</span>
-              <input type="text" ref={totalNumberRef} placeholder="例: 30" />
+              <span>Set size:</span>
+              <input type="text" ref={totalNumberRef} placeholder="e.g. 30" />
               <button onClick={generateRandomByInput}>CREATE</button>
             </div>
           </div>
@@ -187,16 +190,42 @@ export default function App() {
 
         {inputMode === "manual" && (
           <div className="manual-panel">
-            <p className="hint">例: 5,1,9,2,7,3（カンマ区切り/スペース区切りOK）</p>
-            <input
-              type="text"
-              value={manualText}
-              onChange={(e) => setManualText(e.target.value)}
-              placeholder="5,1,9,2,7,3"
-            />
-            <div className="hint small">手動入力は START 押下時に確定します。</div>
+            <p className="hint">Example: 5,1,9,2,7,3 (comma or space separated)</p>
+            <p className="hint">※ Each Value should be from 1 to 100</p>
+            <div className="inline-row">
+              <input
+                type="text"
+                value={manualText}
+                onChange={(e) => {
+                  setManualText(e.target.value);
+                  setManualError("");
+                }}
+                placeholder="5,1,9,2,7,3"
+              />
+              <button className="primary" onClick={saveManualToArray}>
+                SAVE to test
+              </button>
+            </div>
+
+            <div className="hint small">
+              Preview:{" "}
+              {manualPreview.ok ? `${manualPreview.nums.length} items` : "—"}
+            </div>
+
+            {manualError && <div className="error-text">{manualError}</div>}
           </div>
         )}
+        <div className="saved-array">
+          <div className="saved-title">Saved array:</div>
+          <div className="chips">
+            {inputArray.map((v, idx) => (
+              <span className="chip" key={`${v}-${idx}`}>{v}</span>
+            ))}
+          </div>
+          <div className="hint small">
+          ※ Pressing START sends this Saved array to the backend for computation.
+          </div>
+        </div>
       </div>
 
       <div className="panel">
